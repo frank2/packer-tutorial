@@ -26,9 +26,16 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/stub)
 # this will add our test dummy project
 add_subdirectory(${PROJECT_SOURCE_DIR}/dummy)
 
+# this will make sure our stub data will be included in the resources of our packer
+# despite where it may reside in cmake's build
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/stub.hpp"
+  CONTENT "#pragma once\n#define IDB_STUB 1000\n")
+file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/stub.rc"
+  CONTENT "#include <winresrc.h>\n#include \"stub.hpp\"\nIDB_STUB STUB \"$<TARGET_FILE:stub>\"\n")
+
 # this will create our packer executable
 add_executable(packer ${PACKER_HDR} ${PACKER_SRC})
-target_sources(packer PRIVATE ${PACKER_RC})
+target_sources(packer PRIVATE ${PACKER_RC} "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/stub.rc")
 
 # this will link zlib to our packer
 target_link_libraries(packer zlibstatic)
@@ -36,6 +43,7 @@ target_link_libraries(packer zlibstatic)
 # zlib, as part of its build step, drops a config header in the build directory.
 # make sure to include it as well as the original source in your includes!
 target_include_directories(packer PUBLIC
+  "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
   "${PROJECT_SOURCE_DIR}/src"
   "${PROJECT_SOURCE_DIR}/zlib-1.2.13"
   "${CMAKE_CURRENT_BINARY_DIR}/zlib-1.2.13"
@@ -57,7 +65,7 @@ add_dependencies(dummy packer)
 # enable testing to verify our packer works
 enable_testing()
 add_test(NAME test_pack
-  COMMAND "${CMAKE_CURRENT_BINARY_DIR}/$<$<CONFIG:Debug>:Debug>/packer.exe"
-  "${CMAKE_CURRENT_BINARY_DIR}/dummy/$<$<CONFIG:Debug>:Debug>/dummy.exe")
+  COMMAND "$<TARGET_FILE:packer>"
+  "$<TARGET_FILE:dummy>")
 add_test(NAME test_unpack
   COMMAND "packed.exe")

@@ -20,8 +20,3 @@ add_executable(stub ${HEADER_FILES} ${SRC_FILES})
 
 # this will link the parent zlib project to our stub
 target_link_libraries(stub zlibstatic)
-
-# this will copy our stub into a predictable location after it's been built
-add_custom_command(TARGET stub POST_BUILD
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different
-  "${CMAKE_CURRENT_BINARY_DIR}/$<$<CONFIG:Debug>:Debug>/stub.exe" "${PROJECT_SOURCE_DIR}/../stub.exe")

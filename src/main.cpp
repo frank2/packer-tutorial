@@ -9,7 +9,7 @@
 #include <windows.h>
 #include <zlib.h>
 
-#include "resource.hpp"
+#include "stub.hpp"
 
 std::vector<std::uint8_t> read_file(const std::string &filename) {
    std::ifstream fp(filename, std::ios::binary);

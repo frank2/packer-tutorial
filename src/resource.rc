@@ -1,4 +1,0 @@
-#include <winresrc.h>
-#include "resource.hpp"
-
-IDB_STUB STUB "../stub.exe"
