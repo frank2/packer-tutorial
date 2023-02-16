@@ -1,21 +1,22 @@
 # target a cmake version, you can target a lower version if you like
 cmake_minimum_required(VERSION 3.24)
 
-# declare our packer
+# declare our packer as a C++ project (since zlib is a C project and the compilation
+# detection might get confused)
 project(packer CXX)
 
 # this line will mark our packer as MultiThreaded, instead of MultiThreadedDLL
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 # this will collect header, source and resource files into convenient variables
-file(GLOB_RECURSE PACKER_SRC ${PROJECT_SOURCE_DIR}/src/*.cpp)
-file(GLOB_RECURSE PACKER_HDR ${PROJECT_SOURCE_DIR}/src/*.hpp)
-file(GLOB_RECURSE PACKER_RC ${PROJECT_SOURCE_DIR}/src/*.rc)
+file(GLOB_RECURSE SRC_FILES ${PROJECT_SOURCE_DIR}/src/*.cpp)
+file(GLOB_RECURSE HDR_FILES ${PROJECT_SOURCE_DIR}/src/*.hpp)
+file(GLOB_RECURSE RC_FILES ${PROJECT_SOURCE_DIR}/src/*.rc)
 
 # this will give you source groups in the resulting Visual Studio project
-source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Header Files" FILES ${PACKER_HDR})
-source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Source Files" FILES ${PACKER_SRC})
-source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Resource Files" FILES ${PACKER_RC})
+source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Header Files" FILES ${HDR_FILES})
+source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Source Files" FILES ${SRC_FILES})
+source_group(TREE "${PROJECT_SOURCE_DIR}" PREFIX "Resource Files" FILES ${RC_FILES})
 
 # this will add zlib as a build target
 add_subdirectory(${PROJECT_SOURCE_DIR}/zlib-1.2.13)
@@ -27,24 +28,24 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/stub)
 add_subdirectory(${PROJECT_SOURCE_DIR}/dummy)
 
 # this will make sure our stub data will be included in the resources of our packer
-# despite where it may reside in cmake's build
+# despite where it may reside in cmake's build system
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/stub.hpp"
   CONTENT "#pragma once\n#define IDB_STUB 1000\n")
 file(GENERATE OUTPUT "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/stub.rc"
   CONTENT "#include <winresrc.h>\n#include \"stub.hpp\"\nIDB_STUB STUB \"$<TARGET_FILE:stub>\"\n")
 
 # this will create our packer executable
-add_executable(packer ${PACKER_HDR} ${PACKER_SRC})
-target_sources(packer PRIVATE ${PACKER_RC} "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/stub.rc")
+add_executable(packer ${HDR_FILES} ${SRC_FILES})
+target_sources(packer PRIVATE ${RC_FILES} "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>/stub.rc")
 
 # this will link zlib to our packer
 target_link_libraries(packer zlibstatic)
 
 # zlib, as part of its build step, drops a config header in the build directory.
-# make sure to include it as well as the original source in your includes!
+# we do this too, so make sure to include everything for the build!
 target_include_directories(packer PUBLIC
-  "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
   "${PROJECT_SOURCE_DIR}/src"
+  "${CMAKE_CURRENT_BINARY_DIR}/$<CONFIG>"
   "${PROJECT_SOURCE_DIR}/zlib-1.2.13"
   "${CMAKE_CURRENT_BINARY_DIR}/zlib-1.2.13"
 )

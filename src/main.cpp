@@ -30,7 +30,8 @@ std::vector<std::uint8_t> read_file(const std::string &filename) {
 void validate_target(const std::vector<std::uint8_t> &target) {
    auto dos_header = reinterpret_cast<const IMAGE_DOS_HEADER *>(target.data());
 
-   if (dos_header->e_magic != 0x5A4D)
+   // IMAGE_DOS_SIGNATURE is 0x5A4D (for "MZ")
+   if (dos_header->e_magic != IMAGE_DOS_SIGNATURE)
    {
       std::cerr << "Error: target image has no valid DOS header." << std::endl;
       ExitProcess(3);
@@ -38,13 +39,15 @@ void validate_target(const std::vector<std::uint8_t> &target) {
 
    auto nt_header = reinterpret_cast<const IMAGE_NT_HEADERS *>(target.data() + dos_header->e_lfanew);
 
-   if (nt_header->Signature != 0x4550)
+   // IMAGE_NT_SIGNATURE is 0x4550 (for "PE")
+   if (nt_header->Signature != IMAGE_NT_SIGNATURE)
    {
       std::cerr << "Error: target image has no valid NT header." << std::endl;
       ExitProcess(4);
    }
 
-   if (nt_header->FileHeader.Machine != 0x8664)
+   // IMAGE_NT_OPTIONAL_HDR64_MAGIC is 0x020B
+   if (nt_header->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR64_MAGIC)
    {
       std::cerr << "Error: only 64-bit executables are supported for this example!" << std::endl;
       ExitProcess(5);
@@ -145,7 +148,7 @@ int main(int argc, char *argv[]) {
       stub_data.resize(align<std::size_t>(stub_data.size(), file_alignment));
 
    // increment the number of sections in the file header
-   auto sections = nt_header->FileHeader.NumberOfSections;
+   auto section_index = nt_header->FileHeader.NumberOfSections;
    ++nt_header->FileHeader.NumberOfSections;
 
    // acquire a pointer to the section table
@@ -155,8 +158,8 @@ int main(int argc, char *argv[]) {
    );
 
    // get a pointer to our new section and the previous section
-   auto section = &section_table[sections];
-   auto prev_section = &section_table[sections-1];
+   auto section = &section_table[section_index];
+   auto prev_section = &section_table[section_index-1];
 
    // calculate the memory offset, memory size and raw aligned size of our packed section
    auto virtual_offset = align(prev_section->VirtualAddress + prev_section->Misc.VirtualSize, section_alignment);
