@@ -14,6 +14,8 @@
    2. [Loading our PE for execution](https://github.com/frank2/packer-tutorial/blob/main/README.md#loading-our-pe-for-execution)
    3. [Resolving API imports](https://github.com/frank2/packer-tutorial/blob/main/README.md#resolving-api-imports)
    4. [Resolving addresses](https://github.com/frank2/packer-tutorial/blob/main/README.md#resolving-addresses)
+   5. [Transferring execution](https://github.com/frank2/packer-tutorial/blob/main/README.md#transferring-execution)
+7. **[Further exercises](https://github.com/frank2/packer-tutorial/blob/main/README.md#further-exercises)**: Some exercises to further expand on your packer development knowledge.
 
 ## What is a packer?
 
@@ -864,3 +866,185 @@ while (import_table->OriginalFirstThunk != 0)
 With imports resolved, we can now move onto the final piece: dealing with the relocation directory!
 
 ### Resolving addresses
+
+The next data directory to contend with is what's called the *relocation directory*. This directory is responsible for translating absolute addresses within the code into their new base values. This process essentially implements something you might be familiar with called [address space layout randomization](https://en.wikipedia.org/wiki/Address_space_layout_randomization), but is also responsible for making sure DLL address spaces don't collide with one another.
+
+First, we need to make sure that our binary is actually capable of moving address bases. Sometimes, for older binaries especially, this is not enabled. Within the characteristics of a given Windows executable are its characteristics, confusingly referred to as `DllCharacteristics` in the optional header. We're concerned with the "dynamic base" characteristic. There's a special way to unpack non-ASLR binaries, which we're not covering, so it's an error if our binary doesn't support it. (This is better as an error in your packer, not your stub, but for the sake of ease of flow of PE header education, it was placed here instead.)
+
+```cpp
+// first, check if we can even relocate the image. if the dynamic base flag isn't set,
+// then this image probably isn't prepared for relocating.
+auto nt_header = get_nt_headers(image);
+
+if (nt_header->OptionalHeader.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE == 0)
+{
+   std::cerr << "Error: image cannot be relocated." << std::endl;
+   ExitProcess(7);
+}
+```
+
+Next, we need to calculate the *address delta*. This is simply the difference between the image's `ImageBase` variable and the virtual image's base address. It is used to quickly adjust the values of hardcoded addresses in the binary.
+
+```cpp
+// calculate the difference between the image base in the compiled image
+// and the current virtually allocated image. this will be added to our
+// relocations later.
+std::uintptr_t delta = reinterpret_cast<std::uintptr_t>(image) - nt_header->OptionalHeader.ImageBase;
+```
+
+Now we're ready to tackle the relocation table.
+
+```c
+typedef struct _IMAGE_BASE_RELOCATION {
+    DWORD   VirtualAddress;
+    DWORD   SizeOfBlock;
+//  WORD    TypeOffset[1];
+} IMAGE_BASE_RELOCATION;
+```
+
+Note the commented out `TypeOffset` array, it's actually relevant here! A relocation table consists of blocks of offsets containing addresses to adjust, identified by the `VirtualAddress` RVA. The `TypeOffset` array contains encoded word values which contain the relocation type as well as the offset from `VirtualAddress` to adjust. As far as relocation type goes, for 64-bit binaries, we're only concerned with one relocation type. Unfortunately, this structure is not actually a variadic struct, so we have to do some pointer arithmetic to get the `TypeOffset` array.
+
+As mentioned, the `TypeOffset` array contains encoded words. The upper 4 bits (mask `0xF000`) contain the relocation type, which can be found in the ["base relocation types" section](https://learn.microsoft.com/en-us/windows/win32/debug/pe-format) of the PE format documentation. The lower 12 bits (mask `0x0FFF`) contain the offset from the `VirtualAddress` argument to adjust.
+
+Explaining it is a chore and just comes off as very confusing in the end. Getting a pointer to an address to relocate looks like this:
+
+```cpp
+auto ptr = reinterpret_cast<std::uintptr_t *>(image + relocation_table->VirtualAddress + offset);
+```
+
+And adjusting that address looks like this:
+
+```cpp
+*ptr += delta;
+```
+
+So as complicated as it is to explain the relocation directory, the operations are actually very simple to understand in code.
+
+Advancing to the next block of relocation data is made easy by the `SizeOfBlock` variable. This block contains the size of our header *as well as* the size of the `TypeOffset` array. If `TypeOffset` were instead a staticly sized array, we would simply advance to the next relocation entry by adding the call to `sizeof` of the relocation header.
+
+With all this explained, you should be able to understand this relocation code:
+
+```cpp
+// get the relocation table.
+auto relocation_table = reinterpret_cast<IMAGE_BASE_RELOCATION *>(image + directory_entry.VirtualAddress);
+
+// when the virtual address for our relocation header is null,
+// we've reached the end of the relocation table.
+while (relocation_table->VirtualAddress != 0)
+{
+   // since the SizeOfBlock value also contains the size of the relocation table header,
+   // we can calculate the size of the relocation array by subtracting the size of
+   // the header from the SizeOfBlock value and dividing it by its base type: a 16-bit integer.
+   std::size_t relocations = (relocation_table->SizeOfBlock - sizeof(IMAGE_BASE_RELOCATION)) / sizeof(std::uint16_t);
+
+   // additionally, the relocation array for this table entry is directly after
+   // the relocation header
+   auto relocation_data = reinterpret_cast<std::uint16_t *>(&relocation_table[1]);
+
+   for (std::size_t i=0; i<relocations; ++i)
+   {
+      // a relocation is an encoded 16-bit value:
+      //   * the upper 4 bits are its relocation type
+      //     (https://learn.microsoft.com/en-us/windows/win32/debug/pe-format see "base relocation types")
+      //   * the lower 12 bits contain the offset into the relocation entry's address base into the image
+      //
+      auto relocation = relocation_data[i];
+      std::uint16_t type = relocation >> 12;
+      std::uint16_t offset = relocation & 0xFFF;
+      auto ptr = reinterpret_cast<std::uintptr_t *>(image + relocation_table->VirtualAddress + offset);
+
+      // there are typically only two types of relocations for a 64-bit binary:
+      //   * IMAGE_REL_BASED_DIR64: a 64-bit delta calculation
+      //   * IMAGE_REL_BASED_ABSOLUTE: a no-op
+      //
+      if (type == IMAGE_REL_BASED_DIR64)
+         *ptr += delta;
+   }
+
+   // the next relocation entry is at SizeOfBlock bytes after the current entry
+   relocation_table = reinterpret_cast<IMAGE_BASE_RELOCATION *>(
+      reinterpret_cast<std::uint8_t *>(relocation_table) + relocation_table->SizeOfBlock
+   );
+}
+```
+
+Congratulations! Our image is now ready for execution! We've accomplished a lot so far:
+
+* we unpacked our binary from our section table at runtime
+* we mapped our binary onto an executable memory region
+* we resolved the imports needed for our binary to execute
+* we relocated the addresses in the image to point to our new image base
+
+Now we're ready to run our unpacked binary!
+
+### Transferring execution
+
+Let's go back to our main loop now:
+
+```cpp
+int main(int argc, char *argv[]) {
+   // first, decompress the image from our added section
+   auto image = get_image();
+   
+   // next, prepare the image to be a virtual image   
+   auto loaded_image = load_image(image);
+
+   // resolve the imports from the executable
+   load_imports(loaded_image);
+
+   // relocate the executable
+   relocate(loaded_image);
+
+   // get the headers from our loaded image
+   auto nt_headers = get_nt_headers(loaded_image);
+
+   // acquire and call the entrypoint
+   auto entrypoint = loaded_image + nt_headers->OptionalHeader.AddressOfEntryPoint;
+   reinterpret_cast<void(*)()>(entrypoint)();
+   
+   return 0;
+}
+```
+
+As you can see, transferring execution is very simple, although does require knowledge of [function pointers](https://en.wikipedia.org/wiki/Function_pointer). These are our relevant bits:
+
+```cpp
+// acquire and call the entrypoint
+auto entrypoint = loaded_image + nt_headers->OptionalHeader.AddressOfEntryPoint;
+reinterpret_cast<void(*)()>(entrypoint)();
+```
+
+`AddressOfEntryPoint` is, as you can guess, an RVA in our loaded image's code entry. Despite what you may know about `main` entrypoints, the raw entrypoint of a given binary is untyped-- your C++ compiler is mainly responsible for setting up the code environment to feed arguments to your expected main functions, whether they be `main` or `WinMain`.
+
+Fundamentally, this is how a function pointer is declared:
+
+```c
+return_type (*variable_name)(int arg1, int arg2, ...)
+```
+
+Hence, our function pointer to call our entry point-- having no type associated with it-- looks like this:
+
+```c
+void (*entrypoint)()
+```
+
+As a cast, it reduces to this:
+
+```c
+void(*)()
+```
+
+With everything loaded correctly, you should see your packed program run. In our case, since we packed our dummy executable, it simply outputs a message:
+
+```
+$ ./packed.exe
+I'm just a little guy!
+```
+
+Congratulations! You're done! You've just written a Windows packer!
+
+## Further exercises
+
+* **Attack the analyst**: Learn to implement [some anti-debug techniques](https://anti-reversing.com/Downloads/Anti-Reversing/The_Ultimate_Anti-Reversing_Reference.pdf) and harden your packer.
+* **Expand your support**: Learn to implement a non-relocatable binary, or learn to implement further directories such as the thread-local storage directory (`IMAGE_TLS_DIRECTORY`) and the resource directory (`IMAGE_RESOURCE_DIRECTORY`). Since documentation is lacking at this level, you can see my implementations in [exe-rs](https://github.com/exe-rs).
+* **Obfuscate your stub**: Try to figure out how the analyst is going to unpack your binary and prevent ease of unpacking, such as [erasing the headers](https://github.com/frank2/packer-tutorial/blob/main/stub/src/main.cpp#L84).
