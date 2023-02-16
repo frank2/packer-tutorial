@@ -1034,6 +1034,12 @@ As a cast, it reduces to this:
 void(*)()
 ```
 
+Putting everything together, we can simply cast our entrypoint as a function pointer and call it in the same line, like so:
+
+```cpp
+reinterpret_cast<void(*)()>(entrypoint)();
+```
+
 With everything loaded correctly, you should see your packed program run. In our case, since we packed our dummy executable, it simply outputs a message:
 
 ```
