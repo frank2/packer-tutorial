@@ -881,6 +881,14 @@ if (nt_header->OptionalHeader.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNA
    std::cerr << "Error: image cannot be relocated." << std::endl;
    ExitProcess(7);
 }
+    
+// once we know we can relocate the image, make sure a relocation directory is present
+auto directory_entry = nt_header->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_BASERELOC];
+
+if (directory_entry.VirtualAddress == 0) {
+   std::cerr << "Error: image can be relocated, but contains no relocation directory." << std::endl;
+   ExitProcess(8);
+}
 ```
 
 Next, we need to calculate the *address delta*. This is simply the difference between the image's `ImageBase` variable and the virtual image's base address. It is used to quickly adjust the values of hardcoded addresses in the binary.
