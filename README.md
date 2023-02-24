@@ -1,21 +1,23 @@
 ![PACKERS](https://frank2.github.io/img/packers.png "PACKERS")
 
 ### Table of Contents
-1. **[What is a packer?](https://github.com/frank2/packer-tutorial/blob/main/README.md#what-is-a-packer)**: An introduction into the purpose of packers and a guide through what the development necessities of a packer are.
-2. **[Prerequisites](https://github.com/frank2/packer-tutorial/blob/main/README.md/#prerequisites)**: Tools needed to work with this tutorial.
-3. **[Getting a taste](https://github.com/frank2/packer-tutorial/blob/main/README.md#getting-a-taste)**: A demonstration of what you will be building with this tutorial.
-4. **[Sketching out our CMake project](https://github.com/frank2/packer-tutorial/blob/main/README.md#sketching-out-our-cmake-project)**: A mini CMake tutorial on creating a build system for the somewhat complex needs of a packer.
-5. **[Packing binaries into your stub](https://github.com/frank2/packer-tutorial/blob/main/README.md#packing-binaries-into-your-stub)**: A tutorial on how to write the packer portion of the packer/stub combo, and also an introduction to the Windows executable file format.
-   1. [Managing resources](https://github.com/frank2/packer-tutorial/blob/main/README.md#managing-resources)
-   2. [Parsing a PE file](https://github.com/frank2/packer-tutorial/blob/main/README.md#parsing-a-pe-file)
-   3. [Manipulating a PE file](https://github.com/frank2/packer-tutorial/blob/main/README.md#manipulating-a-pe-file)
-6. **[Simulating the loader](https://github.com/frank2/packer-tutorial/blob/main/README.md#simulating-the-loader)**: A tutorial on how to build a minimal stub executable to unpack and load a target executable, and also an introduction into more advanced Windows executable manipulation.
-   1. [Reading our PE from memory](https://github.com/frank2/packer-tutorial/blob/main/README.md#reading-our-pe-from-memory)
-   2. [Loading our PE for execution](https://github.com/frank2/packer-tutorial/blob/main/README.md#loading-our-pe-for-execution)
-   3. [Resolving API imports](https://github.com/frank2/packer-tutorial/blob/main/README.md#resolving-api-imports)
-   4. [Resolving addresses](https://github.com/frank2/packer-tutorial/blob/main/README.md#resolving-addresses)
-   5. [Transferring execution](https://github.com/frank2/packer-tutorial/blob/main/README.md#transferring-execution)
-7. **[Further exercises](https://github.com/frank2/packer-tutorial/blob/main/README.md#further-exercises)**: Some exercises to further expand on your packer development knowledge.
+1. **[What is a packer?](#what-is-a-packer)**: An introduction into the purpose of packers and a guide through what the development necessities of a packer are.
+2. **[Prerequisites](#prerequisites)**: Tools needed to work with this tutorial.
+3. **[Getting a taste](#getting-a-taste)**: A demonstration of what you will be building with this tutorial.
+4. **[Sketching out our CMake project](#sketching-out-our-cmake-project)**: A mini CMake tutorial on creating a build system for the somewhat complex needs of a packer.
+5. **[Packing binaries into your stub](#packing-binaries-into-your-stub)**: A tutorial on how to write the packer portion of the packer/stub combo, and also an introduction to the Windows executable file format.
+   1. [Managing resources](#managing-resources)
+   2. [Parsing a PE file](#parsing-a-pe-file)
+   3. [Manipulating a PE file](#manipulating-a-pe-file)
+6. **[Simulating the loader](#simulating-the-loader)**: A tutorial on how to build a minimal stub executable to unpack and load a target executable, and also an introduction into more advanced Windows executable manipulation.
+   1. [Reading our PE from memory](#reading-our-pe-from-memory)
+   2. [Loading our PE for execution](#loading-our-pe-for-execution)
+   3. [Resolving API imports](#resolving-api-imports)
+   4. [Resolving addresses](#resolving-addresses)
+   5. [Transferring execution](#transferring-execution)
+7. **[Further exercises](#further-exercises)**: Some exercises to further expand on your packer development knowledge.
+
+Seem like a daunting read? Try [the presentation version](https://github.com/frank2/packer-tutorial/blob/main/presentation.pdf), which summarizes this readme. YouTube video coming soon!
 
 ## What is a packer?
 
