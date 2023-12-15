@@ -135,7 +135,7 @@ void load_imports(std::uint8_t *image) {
 
          // if the top-most bit is set, this is a function ordinal.
          // otherwise, it's an import by name.
-         if (lookup_address & IMAGE_ORDINAL_FLAG64 != 0)
+         if ((lookup_address & IMAGE_ORDINAL_FLAG64) != 0)
          {
             // get the function ordinal by masking the lower 32-bits of the lookup address.
             function = GetProcAddress(dll_import,
@@ -178,7 +178,7 @@ void relocate(std::uint8_t *image) {
    // then this image probably isn't prepared for relocating.
    auto nt_header = get_nt_headers(image);
 
-   if (nt_header->OptionalHeader.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE == 0)
+   if ((nt_header->OptionalHeader.DllCharacteristics & IMAGE_DLLCHARACTERISTICS_DYNAMIC_BASE) == 0)
    {
       std::cerr << "Error: image cannot be relocated." << std::endl;
       ExitProcess(7);
